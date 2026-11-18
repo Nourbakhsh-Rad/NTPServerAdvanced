@@ -1,0 +1,49 @@
+name: Native Unit Tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "examples/**"
+      - "tests/**"
+      - "library.json"
+      - "library.properties"
+      - ".github/workflows/tests.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run native test suite
+        run: |
+          cd tests
+          make run
+
+      - name: Check manifests and version macros agree
+        run: |
+          python3 - <<'PY'
+          import json, re, sys
+          hdr = open("src/NTPServer_Advanced.h", encoding="utf-8").read()
+          macro = re.search(r'NTP_SERVER_VERSION_STRING\s+"([^"]+)"', hdr).group(1)
+          pio = json.load(open("library.json", encoding="utf-8"))["version"]
+          props = dict(l.strip().split("=", 1) for l in open("library.properties", encoding="utf-8") if "=" in l)
+          print("header:", macro, "| library.json:", pio, "| library.properties:", props["version"])
+          sys.exit(0 if macro == pio == props["version"] else 1)
+          PY
+
+      - name: Sanity-compile all build configurations
+        run: |
+          set -e
+          for flags in "-DESP32" "" "-DESP32 -DNTP_ENABLE_CLOCK_FILTER=0" "-DESP32 -DNTP_ENABLE_SYSLOG=1" "-DESP32 -DNTP_LOG_LEVEL=4"; do
+            echo "== flags: [$flags]"
+            g++ -std=c++14 $flags -Itests/stubs -Isrc -Wall -Wextra -c src/NTPServer_Advanced.cpp -o /tmp/lib.o
+          done
+
+      - name: Sanity-compile example sketch
+        run: |
+          g++ -std=c++14 -DESP32 -Itests/stubs -Isrc -Wall -Wextra -x c++ -c examples/NTPserver_RFC5905/NTPserver_RFC5905.ino -o /tmp/ino.o

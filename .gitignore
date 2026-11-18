@@ -1,0 +1,13 @@
+# Build output
+tests/test_ntp
+*.o
+*.a
+.pio/
+build/
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# Local archives
+*.zip
